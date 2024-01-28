@@ -1,33 +1,31 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import time
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
-def get_mp3_links(url):
-    # Setup Selenium WebDriver
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service)
-    driver.get(url)
+def find_mp3_links(url):
+    response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Failed to access {url}")
+        return []
 
-    # Wait for the page to load
-    time.sleep(5)  # Adjust the sleep time as needed
-
-    # Find all download links or buttons (you might need to adjust the selector)
-    download_elements = driver.find_elements(By.CSS_SELECTOR, "a[href$='.mp3']")
-
-    mp3_links = [element.get_attribute('href') for element in download_elements]
-
-    driver.quit()
+    soup = BeautifulSoup(response.text, 'html.parser')
+    mp3_links = [urljoin(url, link['href']) for link in soup.find_all('a', href=True) if link['href'].endswith('.mp3')]
     return mp3_links
 
 def save_mp3_links(mp3_links, filename='mp3_links.txt'):
-    with open(filename, 'w') as file:
+    with open(filename, 'a') as file:  # 'a' to append to the file
         for link in mp3_links:
             file.write(link + '\n')
-    print(f"Saved {len(mp3_links)} MP3 links to {filename}")
 
 if __name__ == '__main__':
-    url = 'https://darkfloor.co.uk/mantisradio/'
-    mp3_links = get_mp3_links(url)
-    save_mp3_links(mp3_links)
+    base_url = 'https://darkfloor.co.uk/mantisradio'
+    max_number = 354  # Starting point
+
+    for number in range(max_number, 0, -1):  # Descend from max_number to 1
+        formatted_url = f"{base_url}{number}"
+        print(f"Processing: {formatted_url}")
+        mp3_links = find_mp3_links(formatted_url)
+        if mp3_links:
+            save_mp3_links(mp3_links)
+        else:
+            print(f"No MP3 links found at {formatted_url}")
